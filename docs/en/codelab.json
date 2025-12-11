@@ -1,0 +1,28 @@
+{
+  "environment": "web",
+  "format": "html",
+  "prefix": "https://storage.googleapis.com",
+  "mainga": "UA-49880327-14",
+  "updated": "2025-11-26T17:23:55+09:00",
+  "id": "en",
+  "duration": 22,
+  "title": "Genkit Hands-on",
+  "authors": "Yuki Tanabe",
+  "summary": "Genkit Hands-on",
+  "source": "codelab-en.md",
+  "theme": "",
+  "status": [
+    "published"
+  ],
+  "category": [
+    "genkit",
+    "firebase",
+    "javascript"
+  ],
+  "tags": [
+    "web"
+  ],
+  "feedback": "https://github.com/tanabee/genkit-codelab/issues",
+  "ga4": "2P6VCDLG05",
+  "url": "en"
+}
