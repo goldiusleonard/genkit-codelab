@@ -1,0 +1,337 @@
+
+<!doctype html>
+
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1.0, user-scalable=yes">
+  <meta name="theme-color" content="#4F7DC9">
+  <meta charset="UTF-8">
+  <title>Genkit Hands-on</title>
+  <link rel="stylesheet" href="//fonts.googleapis.com/css?family=Source+Code+Pro:400|Roboto:400,300,400italic,500,700|Roboto+Mono">
+  <link rel="stylesheet" href="//fonts.googleapis.com/icon?family=Material+Icons">
+  <link rel="stylesheet" href="https://storage.googleapis.com/claat-public/codelab-elements.css">
+  <style>
+    .success {
+      color: #1e8e3e;
+    }
+    .error {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <google-codelab-analytics gaid="UA-49880327-14" ga4id=""></google-codelab-analytics>
+  <google-codelab codelab-gaid=""
+                  codelab-ga4id="2P6VCDLG05"
+                  id="ja"
+                  title="Genkit Hands-on"
+                  environment="web"
+                  feedback-link="https://github.com/tanabee/genkit-codelab/issues">
+    
+      <google-codelab-step label="Intro" duration="1">
+        <p>このハンズオンでは Genkit の初期セットアップからはじめて、 Code Execution や Function Calling などの機能をローカル環境で動作させます。非常に簡単な内容になっていますが、このハンズオンを通して Genkit を用いた開発がいかに効率的に行えるか体験していただけると思います。</p>
+<h2 is-upgraded>前提条件</h2>
+<ul>
+<li>Node.js v20+</li>
+<li>npm</li>
+</ul>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Get Gemini API key" duration="2">
+        <p>以下のサイトにアクセスし、 Gemini の API キーを取得してください。</p>
+<ul>
+<li><a href="https://aistudio.google.com/app/apikey" target="_blank">Get API key | Gemini</a></li>
+</ul>
+<p>2025 年 11 月時点において、API キーには無料枠が存在し、ハンズオンを実行する範囲であれば課金の心配はありません。</p>
+<ul>
+<li><a href="https://ai.google.dev/pricing" target="_blank">Pricing models | Gemini</a></li>
+</ul>
+<p>ターミナルで以下の curl コマンドを貼り付けて <code>YOUR_API_KEY</code> 部分を置き換えて実行してみます。正常にレスポンスが返ってくることを確認しましょう。</p>
+<pre><code language="language-sh" class="language-sh">curl &#34;https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent&#34; \
+-H &#39;Content-Type: application/json&#39; \
+-H &#39;X-goog-api-key: YOUR_API_KEY&#39; \
+-X POST \
+-d &#39;{
+  &#34;contents&#34;: [
+    {
+      &#34;parts&#34;: [
+        {
+          &#34;text&#34;: &#34;Firebase について 200 文字以内で説明してください。&#34;
+        }
+      ]
+    }
+  ]
+}&#39;
+</code></pre>
+<p>Windows の場合は PowerShell 上で以下のコマンドを実行して確認しましょう。</p>
+<pre><code language="language-PowerShell" class="language-PowerShell">(curl `
+  -Headers @{&#34;Content-Type&#34;=&#34;application/json&#34;} `
+  -Body &#39;{&#34;contents&#34;:[{&#34;parts&#34;:[{&#34;text&#34;:&#34;Firebase について 200 文字以内で説明してください。&#34;}]}]}&#39; `
+  -Method POST `
+  -Uri &#39;https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=YOUR_API_KEY&#39;).Content
+</code></pre>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Hello Genkit!" duration="5">
+        <p>以下のコマンドを実行してプロジェクトの初期設定を行います。</p>
+<pre><code language="language-sh" class="language-sh">$ npm create genkitx
+
+? Select template › - Use arrow-keys. Return to submit.
+❯   Minimal - This is a Minimal template
+    MCP
+
+? Enter your project name › hello-genkit
+
+✅ Project &#34;hello-genkit&#34; has been successfully generated
+
+$ cd hello-genkit
+</code></pre>
+<p>先ほど取得した Gemini の API キーを環境変数にセットします。</p>
+<pre><code language="language-sh" class="language-sh">export GEMINI_API_KEY=&lt;your-api-key&gt;
+</code></pre>
+<p>Windows の場合は PowerShell で以下のコマンドを実行し、Gemini の API キーを環境変数にセットします。</p>
+<pre><code language="language-PowerShell" class="language-PowerShell">$env:GEMINI_API_KEY=&#34;&lt;your API key&gt;&#34;
+</code></pre>
+<p>ファイル <code>src/index.ts</code> を確認します。このコードが Genkit による生成 AI リクエストの実態となるコードで 20 行程度で書くことができます。</p>
+<pre><code language="language-typescript" class="language-typescript">import { genkit, z } from &#39;genkit&#39;
+import { googleAI } from &#39;@genkit-ai/googleai&#39;
+import { startFlowServer } from &#39;@genkit-ai/express&#39;
+import { logger } from &#39;genkit/logging&#39;
+logger.setLogLevel(&#39;debug&#39;)
+
+const ai = genkit({
+  plugins: [googleAI()],
+  model: googleAI.model(&#39;gemini-2.5-flash-lite&#39;, {
+    temperature: 0.8,
+  }),
+})
+
+const mainFlow = ai.defineFlow({
+  name: &#39;mainFlow&#39;,
+  inputSchema: z.string(),
+}, async (input) =&gt; {
+  const { text } = await ai.generate(input)
+  return text
+})
+
+startFlowServer({ flows: [mainFlow] })
+</code></pre>
+<p>以下のコマンドで Genkit が起動し、 Developer Tools が自動的に立ち上がります。</p>
+<pre><code language="language-sh" class="language-sh">npm start
+</code></pre>
+<p>Flows メニューから <code>mainFlow</code> を選択します。文字列を入力し <code>Run</code> ボタンを選択すると Gemini に対してプロンプトを投げることができます。</p>
+<ul>
+<li>プロンプト例: <code>Firebase を 200 文字以内で説明してください。</code></li>
+</ul>
+<p class="image-container"><img alt="Hello Genkit! | Flow" src="img/529467bdc4739cdd.png"></p>
+<p><code>View trace</code> ボタンを押すと Gemini API に対する Input, Output を詳細に確認することができます。 <img alt="Hello Genkit! | Trace" src="img/f6d9537120ac247d.png"></p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Code Execution" duration="3">
+        <p>Gemini の Code Execution を用いると、 Python コードを生成・実行することが可能になります。コードの変更は 1 行だけです。</p>
+<pre><code language="language-typescript" class="language-typescript">  model: googleAI.model(&#39;gemini-2.5-flash-lite&#39;, {
+    temperature: 0.8,
++   codeExecution: true,
+  }),
+</code></pre>
+<p>Developer Tools を開いて <code>mainFlow</code> にプログラミングを要するプロンプトを入力しましょう。以下にリクエスト例を挙げます。</p>
+<ul>
+<li><code>10 万回コインを投げて、表が出た回数の割合をシミュレートしてください。</code></li>
+<li><code>フィボナッチ数列の 100 番目の数を計算してください。</code></li>
+<li><code>Python で以下のコードを実行してください: print('Hello World')</code></li>
+</ul>
+<p>結果は以下のようになりました。 <img alt="Code Execution | Flows" src="img/c18c8cdcf8845ca2.png"></p>
+<p>View trace メニューを見ると実際に実行された Python コードを確認することができます。 <img alt="Code Execution | Trace" src="img/b7b62fb980364780.png"></p>
+<h2 is-upgraded>チャレンジ</h2>
+<p>余裕のある方は Code Execution が必要なプロンプトを考えて実際に試してみましょう。</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Function Calling" duration="5">
+        <p>Function Calling は生成 AI が事前に定義された関数を必要に応じて呼び出し、ユーザーの要求に合致する処理を実行します。例えば以下のようなユースケースがあります。</p>
+<ul>
+<li>ユーザーのリクエストに URL や PDF が含まれている場合、その中身を抽出する。</li>
+<li>外部 API を呼び出し <ul>
+<li>カレンダー登録</li>
+<li>チャットサービスへの通知</li>
+<li>社内ドキュメント検索</li>
+<li>Google 検索</li>
+</ul>
+</li>
+</ul>
+<p>このハンズオンでは URL の中身を抽出するツールを実装して Function Calling を体験してもらいます。HTML parser として <a href="https://www.npmjs.com/package/cheerio" target="_blank">Cheerio</a> を利用します。</p>
+<pre><code language="language-sh" class="language-sh">npm i cheerio
+</code></pre>
+<p>Code Execution は一度削除しておきます。</p>
+<pre><code language="language-typescript" class="language-typescript">  model: googleAI.model(&#39;gemini-2.5-flash-lite&#39;, {
+    temperature: 0.8,
+-   codeExecution: true,
+  }),
+</code></pre>
+<p>cheerio を import します。</p>
+<pre><code language="language-typescript" class="language-typescript">  import { genkit, z } from &#39;genkit&#39;
+  import { googleAI, gemini25FlashPreview0417 } from &#39;@genkit-ai/googleai&#39;
++ import * as cheerio from &#39;cheerio&#39;
+</code></pre>
+<p>src/index.ts の <code>ai</code> 変数定義の下に以下の関数を追加します。第一引数に tool の設定値を指定し、第二引数に実行する処理を記載します。</p>
+<pre><code language="language-typescript" class="language-typescript">const webLoader = ai.defineTool(
+  {
+    name: &#34;webLoader&#34;,
+    description:
+      &#34;When a URL is received, it accesses the URL and retrieves the content inside.&#34;,
+    inputSchema: z.object({ url: z.string() }),
+    outputSchema: z.string(),
+  },
+  async ({ url }) =&gt; {
+    const res = await fetch(url)
+    const html = await res.text()
+    const $ = cheerio.load(html)
+    $(&#34;script, style, noscript&#34;).remove()
+    if ($(&#34;article&#34;)) {
+      return $(&#34;article&#34;).text()
+    }
+    return $(&#34;body&#34;).text()
+  },
+)
+</code></pre>
+<p><code>generate</code> メソッドのパラメータに <code>tools</code> を指定して、配列の中身に <code>webLoader</code> を指定します。 <code>tools</code> は配列で指定できるので複数のツールを設定することができます。その中から必要なツールを生成 AI が選択して実行します。必要かどうかの判断は <code>defineTool</code> の <code>description</code> をもとに行われます。そのためプロンプトエンジニアリングと同様に <code>description</code> のチューニングは重要です。</p>
+<pre><code language="language-typescript" class="language-typescript">-  const { text } = await ai.generate(input)
++  const { text } = await ai.generate({ prompt: input, tools: [webLoader] })
+</code></pre>
+<p>最終的なソースコードは以下の GitHub で確認できます。</p>
+<p><a href="https://github.com/tanabee/genkit-codelab/blob/main/steps/function-calling/src/index.ts" target="_blank">https://github.com/tanabee/genkit-codelab/blob/main/steps/function-calling/src/index.ts</a></p>
+<p>それでは、コードが完成したので Developer Tools を開いてみます。 Tools メニューに webLoader が追加されていることが分かります。 webLoader を選択し、以下の URL を挿入して実行します。</p>
+<p>URL: <a href="https://zenn.dev/tanabee/articles/e05f722c7cbc6c" target="_blank">https://zenn.dev/tanabee/articles/e05f722c7cbc6c</a></p>
+<p class="image-container"><img alt="Function Calling | Tool" src="img/e6f6a1092f44b695.png"></p>
+<p>URL の中身のコンテンツを抽出できました。このように Genkit の Deleloper Tools では tool 単体で検証することができます。tool が実際に動作することが分かって Flow に組み込むことができるので効率よく開発を進められます。</p>
+<p>次に Flow メニューから mainFlow を選択します。以下のようにプロンプトを入力して実行してみます。</p>
+<p>プロンプト: <code>以下の URL の内容を 200 文字以内で要約してください。https://zenn.dev/tanabee/articles/e05f722c7cbc6c</code></p>
+<p>抽出された内容をもとに要約されていることが分かります。</p>
+<p class="image-container"><img alt="Function Calling | Flow" src="img/9253f6b5ce093908.png"></p>
+<p>View trace を見てみます。すると Gemini API リクエストが 2 回行われている間に webLoader の呼び出しがあり、実際に tool が呼び出されたことが分かります。</p>
+<p class="image-container"><img alt="Function Calling | Trace" src="img/2a17c4c43a1579bf.png"></p>
+<h2 is-upgraded>チャレンジ</h2>
+<p>余裕のある方は自分で tool を定義して Function Calling を実装してみましょう。</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Model Context Protocol" duration="5">
+        <p>Model Context Protocol (MCP) は、生成AIアプリケーションが外部のデータソースやツールに安全かつ効率的にアクセスするための標準化されたプロトコルです。先ほど体験した Function Calling との主な違いは、MCP が<strong>プロトコルレベルでの標準化</strong>を提供する点にあります。</p>
+<p><strong>Function Calling</strong> は、開発者が個別のニーズに対してツールを定義し、呼び出す仕組みです。一方、<strong>MCP</strong> は汎用的なプロトコルで、異なる AI モデルやアプリケーション間でツールやデータソースを共有できるように設計されています。</p>
+<p><a href="https://github.com/modelcontextprotocol/servers" target="_blank">MCP の公式 GitHub</a> には様々なサービスの MCP サーバーがリストアップされており、このエコシステムを活用することで簡単に外部サービスと接続できます。</p>
+<p>このセクションでは、GitHub の MCP サーバーを用いて、Genkit から GitHub にアクセスします。</p>
+<p>これまでとは別のディレクトリを作成し、 <code>npm create genkitx</code> を実行します。テンプレートは <code>MCP</code> を選択します。プロジェクト名は任意です。</p>
+<pre><code language="language-sh" class="language-sh">% npm create genkitx
+
+&gt; npx
+&gt; create-genkitx
+
+? Select template › - Use arrow-keys. Return to submit.
+    Minimal
+    VertexAI
+❯   MCP - This is a MCP template
+    Firebase
+
+? Enter your project name › &lt;your project name&gt;
+</code></pre>
+<p>プロジェクトの作成に成功すると以下のメッセージが表示されるので、ガイドの通りに実行します。</p>
+<p>※GitHub の personal access token は <a href="https://github.com/settings/personal-access-tokens" target="_blank">GitHub Settings</a> で作成できます。</p>
+<pre><code language="language-sh" class="language-sh">✅ Project &lt;your project name&gt; has been successfully generated
+
+You can start your project with the following commands:
+cd &lt;your project name&gt;
+echo &#34;GEMINI_API_KEY=&lt;your-api-key&gt;&#34; &gt; .env
+echo &#34;GITHUB_PERSONAL_ACCESS_TOKEN=&lt;your-github-personal-access-token&gt;&#34; &gt;&gt; .env
+npm start
+Enjoy building with Genkit! 👍
+</code></pre>
+<h2 is-upgraded>ソースコードの確認</h2>
+<p><code>src/index.ts</code> を開いて、前回までとの違いを確認します。</p>
+<p>MCP クライアントの定義が追加されています。</p>
+<pre><code language="language-typescript" class="language-typescript">const githubClient = createMcpClient({
+  name: &#39;github&#39;,
+  rawToolResponses: true,
+  mcpServer: {
+    command: &#39;npx&#39;,
+    args: [&#39;-y&#39;, &#39;@modelcontextprotocol/server-github&#39;],
+    env: process.env as Record&lt;string, string&gt;,
+  },
+})
+</code></pre>
+<p>Flow内で利用可能なMCPツールを取得し、生成AIリクエスト時に指定しています。</p>
+<pre><code language="language-typescript" class="language-typescript">const mainFlow = ai.defineFlow({
+  name: &#39;mainFlow&#39;,
+  inputSchema: z.string(),
+}, async (prompt) =&gt; {
+  await githubClient.ready()
+  const allTools = await githubClient.getActiveTools(ai)
+
+  const enabledTools = [
+    &#39;github-mcp-server/search_repositories&#39;,
+    &#39;github-mcp-server/search_pull_requests&#39;,
+    &#39;github-mcp-server/search_issues&#39;,
+    &#39;github-mcp-server/search_code&#39;,
+    &#39;github-mcp-server/list_pull_requests&#39;,
+    &#39;github-mcp-server/list_issues&#39;,
+    &#39;github-mcp-server/list_commits&#39;,
+  ]
+  const tools = allTools.filter(t =&gt; enabledTools.includes(t.__action.name))
+
+  const { text } = await ai.generate({
+    prompt,
+    tools,
+  })
+
+  return text
+})
+</code></pre>
+<p>以上の変更により、 GitHub に対して MCP 経由でリポジトリ検索できるようになります。</p>
+<h2 is-upgraded>動作確認</h2>
+<p><code>npm start</code> を実行すると、Developer Tools が立ち上がります。 <code>Flows</code> メニューから <code>mainFlow</code> を選択し、生成 AI に <code>Tell me the top 10 GitHub repositories related to Genkit.</code> とリクエストします。</p>
+<p>結果が返ってきました。</p>
+<p class="image-container"><img alt="MCP | Flows" src="img/17779ed8d9bef487.png"></p>
+<p><code>View trace</code> を選択すると <code>github-mcp-server/search_repositories</code> が適切に利用されていることが確認できます。</p>
+<p class="image-container"><img alt="MCP | Flows" src="img/4459a4350ab60fb0.png"></p>
+<h2 is-upgraded>まとめ</h2>
+<p>Function Calling は高いカスタマイズ性を提供する一方、MCP は標準化により柔軟なツール共有を実現します。 MCP の再利用性により、既存のツールを簡単に組み込め、新機能の開発に集中できるようになります。</p>
+<h2 is-upgraded>チャレンジ</h2>
+<p>余裕のある方は、他のMCPサーバー（例：ファイルシステム、データベース）を試してみて、MCPの柔軟性を体験してみましょう。</p>
+<p><a href="https://github.com/modelcontextprotocol/servers" target="_blank">modelcontextprotocol/servers</a></p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Congrats!" duration="1">
+        <p>以上でこのハンズオンは終わりです。少量のコードでこれだけのことが実現できるのは素晴らしいことだと思います。もっと深堀りしたい方向けに Next Action を提示しておきます。</p>
+<h2 is-upgraded>Next steps</h2>
+<ul>
+<li><a href="https://medium.com/firebase-developers/high-precision-responses-with-genkits-google-search-integration-7f142f5c9693" target="_blank">Google Search を用いた Grounding</a></li>
+<li><a href="https://zenn.dev/cureapp/articles/e8f0dd47641bfd" target="_blank">Firebase Genkit アプリを Functions へ手軽にデプロイする</a></li>
+<li><a href="https://firebase.google.com/codelabs/ai-genkit-rag" target="_blank">公式 Codelab: RAG</a></li>
+<li><a href="https://zenn.dev/cureapp/articles/76bf38216ca304" target="_blank">Genkit を使って Gemma2 をローカル LLM として呼び出す</a></li>
+<li><a href="https://zenn.dev/cureapp/articles/1abb1ad278bb0b" target="_blank">100 行で作る Firebase Genkit の Slack ボットアプリ</a></li>
+<li><a href="https://zenn.dev/yukinagae/articles/4edbd93a675077" target="_blank">Goエンジニアのための生成AI - Firebase Genkit入門</a></li>
+<li><a href="https://zenn.dev/tanabee/articles/1729f53b9a3223" target="_blank">社内向け AI チャットの構築</a></li>
+</ul>
+
+
+      </google-codelab-step>
+    
+  </google-codelab>
+
+  <script src="https://storage.googleapis.com/claat-public/native-shim.js"></script>
+  <script src="https://storage.googleapis.com/claat-public/custom-elements.min.js"></script>
+  <script src="https://storage.googleapis.com/claat-public/prettify.js"></script>
+  <script src="https://storage.googleapis.com/claat-public/codelab-elements.js"></script>
+  <script src="//support.google.com/inapp/api.js"></script>
+
+</body>
+</html>
